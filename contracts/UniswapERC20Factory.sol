@@ -11,11 +11,13 @@ contract UniswapERC20Factory {
     address tokenB;
   }
 
-  // 交易对的数量
+  // 交换对的数量
   uint256 public exchangeCount;
-  //
+  // tokenA + tokenB => exchange
   mapping (address => mapping(address => address)) internal setExchange;
+  // exchange => tokenA + tokenB
   mapping (address => Pair) public getPair;
+  // exchangeId => exchange
   mapping (uint256 => address) public getExchangeWithId;
 
 
