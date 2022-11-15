@@ -12,6 +12,7 @@ contract UniswapERC20 is ERC20 {
   string public name;                   // Uniswap V2
   string public symbol;                 // UNI-V2
   uint256 public decimals;              // 18
+  // 按照address大小排序, 小的tokenA, 大的是tokenB
   address public tokenA;                // ERC20 token traded on this contract
   address public tokenB;                // ERC20 token traded on this contract
   address public factoryAddress;        // factory that created this contract
@@ -45,17 +46,33 @@ contract UniswapERC20 is ERC20 {
 
   function getInputPrice(uint256 inputAmount, uint256 inputReserve, uint256 outputReserve) public pure returns (uint256) {
     require(inputReserve > 0 && outputReserve > 0, 'INVALID_VALUE');
+    // 扣除千分之三的手续费 inputAmount减少千分之三 然后带入计算outputAmount
+    // x*y = (x+x') * (y-y')
+    // y' = (1 - x / (x+x'))*y
+    // y' = x'*y / (x+x')
+    // 要兑换1000个x(输入) 能得到多少y(输出)
+    // 909.09  = 1000*10000 / (10000+1000) 不算手续费
+    // 906.61  = 1000*997*10000 / (10000*1000+1000*997) 算手续费
     uint256 inputAmountWithFee = inputAmount.mul(997);
     uint256 numerator = inputAmountWithFee.mul(outputReserve);
     uint256 denominator = inputReserve.mul(1000).add(inputAmountWithFee);
+    // 100.5就是100了
     return numerator / denominator;
   }
 
 
   function getOutputPrice(uint256 outputAmount, uint256 inputReserve, uint256 outputReserve) public pure returns (uint256) {
     require(inputReserve > 0 && outputReserve > 0);
+    // 扣除千分之三的手续费 整体*1000 / 997 最后加一是取整
+    // x*y = (x+x') * (y-y')
+    // x' = x*(y / (y-y') - 1)
+    // x' = x*y' / (y-y') + 1
+    // 要兑换1000个y(输出) 需要多少x(输入)
+    // 1111.11 = 10000 * 1000 / 10000 - 1000 不算手续费
+    // 1115.45 = 10000 * 1000 * 1000 / (10000 - 1000) * 997 + 1 算手续费
     uint256 numerator = inputReserve.mul(outputAmount).mul(1000);
     uint256 denominator = (outputReserve.sub(outputAmount)).mul(997);
+    // 向上取整 100.1 也是 101
     return (numerator / denominator).add(1);
   }
 
@@ -161,6 +178,7 @@ contract UniswapERC20 is ERC20 {
     address _tokenB = tokenB;
 
     if (_totalSupply > 0) {
+      // 之前添加过流动性
       require(minLiquidity > 0);
 
       uint256 reserveA = IERC20(_tokenA).balanceOf(address(this));
@@ -169,6 +187,7 @@ contract UniswapERC20 is ERC20 {
       uint256 amountB = (amountA.mul(reserveB) / reserveA).add(1);
       uint256 liquidityMinted = amountA.mul(_totalSupply) / reserveA;
       require(maxTokenB >= amountB && liquidityMinted >= minLiquidity);
+      // 添加lp token
       balanceOf[msg.sender] = balanceOf[msg.sender].add(liquidityMinted);
       totalSupply = _totalSupply.add(liquidityMinted);
       // 需要先授权给this
@@ -181,6 +200,7 @@ contract UniswapERC20 is ERC20 {
     } else {
       // TODO: figure out how to set this safely
       // arithemtic or geometric mean?
+      // 初始添加流动性
       uint256 initialLiquidity = amountA;
       totalSupply = initialLiquidity;
       balanceOf[msg.sender] = initialLiquidity;
@@ -192,7 +212,7 @@ contract UniswapERC20 is ERC20 {
     }
   }
 
-
+  // amout代表lp token数量
   function removeLiquidity(uint256 amount, uint256 minTokenA, uint256 minTokenB) public nonReentrant returns (uint256, uint256) {
     uint256 _totalSupply = totalSupply;
     require(amount > 0 && minTokenA > 0 && minTokenB > 0 && _totalSupply > 0);
@@ -204,6 +224,7 @@ contract UniswapERC20 is ERC20 {
     uint256 tokenAAmount = amount.mul(reserveA) / _totalSupply;
     uint256 tokenBAmount = amount.mul(reserveB) / _totalSupply;
     require(tokenAAmount >= minTokenA && tokenBAmount >= minTokenB);
+    // 减少lp token数量, 只能减少msg.sender的
     balanceOf[msg.sender] = balanceOf[msg.sender].sub(amount);
     totalSupply = _totalSupply.sub(amount);
     require(IERC20(_tokenA).transfer(msg.sender, tokenAAmount));
