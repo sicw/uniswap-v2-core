@@ -10,6 +10,7 @@ contract UniswapETHFactory {
   mapping (address => address) public getToken;
   mapping (uint256 => address) public getTokenWithId;
 
+  // 创建兑换对 token <--> eth 所以这里只有一个token
   function createExchange(address token) public returns (address) {
     require(token != address(0));
     require(getExchange[token] == address(0), 'EXCHANGE_EXISTS');
