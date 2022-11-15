@@ -78,9 +78,11 @@ contract UniswapERC20 is ERC20 {
 
 
   //TO: DO msg.sender is wrapper
+  // 给了输入token, 然后交换另一个token
   function swapInput(address inputToken, uint256 amountSold, address recipient) public nonReentrant returns (uint256) {
       address _tokenA = address(tokenA);
       address _tokenB = address(tokenB);
+      // 解析inputToken 和 outputToken 因为你也不知道传进来的inputToken是tokenA还是tokenB
       bool inputIsA = inputToken == _tokenA;
       require(inputIsA || inputToken == _tokenB);
       address outputToken = _tokenA;
@@ -88,8 +90,10 @@ contract UniswapERC20 is ERC20 {
         outputToken == _tokenB;
       }
 
+      // 获取存量
       uint256 inputReserve = IERC20(inputToken).balanceOf(address(this));
       uint256 outputReserve = IERC20(outputToken).balanceOf(address(this));
+      // 计算能买多少另一个token
       uint256 amountBought = getInputPrice(amountSold, inputReserve, outputReserve);
       require(IERC20(inputToken).transferFrom(msg.sender, address(this), amountSold));
       require(IERC20(outputToken).transfer(recipient, amountBought));
