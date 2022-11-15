@@ -95,7 +95,9 @@ contract UniswapERC20 is ERC20 {
       uint256 outputReserve = IERC20(outputToken).balanceOf(address(this));
       // 计算能买多少另一个token
       uint256 amountBought = getInputPrice(amountSold, inputReserve, outputReserve);
+      // 将输入token转进address(this) 需要msg.sender给当前合约授权
       require(IERC20(inputToken).transferFrom(msg.sender, address(this), amountSold));
+      // 将输出token 从address(this) 发送到 recipient 可以直接调用transfer
       require(IERC20(outputToken).transfer(recipient, amountBought));
 
       if(inputIsA) {
