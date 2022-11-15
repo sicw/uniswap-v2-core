@@ -165,11 +165,13 @@ contract UniswapERC20 is ERC20 {
 
       uint256 reserveA = IERC20(_tokenA).balanceOf(address(this));
       uint256 reserveB = IERC20(_tokenB).balanceOf(address(this));
+      // 这里按比例计算后+1
       uint256 amountB = (amountA.mul(reserveB) / reserveA).add(1);
       uint256 liquidityMinted = amountA.mul(_totalSupply) / reserveA;
       require(maxTokenB >= amountB && liquidityMinted >= minLiquidity);
       balanceOf[msg.sender] = balanceOf[msg.sender].add(liquidityMinted);
       totalSupply = _totalSupply.add(liquidityMinted);
+      // 需要先授权给this
       require(IERC20(_tokenA).transferFrom(msg.sender, address(this), amountA));
       require(IERC20(_tokenB).transferFrom(msg.sender, address(this), amountB));
       emit AddLiquidity(msg.sender, amountA, amountB);
@@ -198,6 +200,7 @@ contract UniswapERC20 is ERC20 {
     address _tokenB = tokenB;
     uint256 reserveA = IERC20(_tokenA).balanceOf(address(this));
     uint256 reserveB = IERC20(_tokenB).balanceOf(address(this));
+    // 等比例计算收益
     uint256 tokenAAmount = amount.mul(reserveA) / _totalSupply;
     uint256 tokenBAmount = amount.mul(reserveB) / _totalSupply;
     require(tokenAAmount >= minTokenA && tokenBAmount >= minTokenB);
