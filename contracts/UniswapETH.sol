@@ -181,6 +181,7 @@ contract UniswapETH is ERC20 {
   }
 
   // token -> eth -> token
+  // 在from中输入了想要卖的token数额
   function tokenToTokenInput(
     uint256 tokensSold,
     uint256 minTokensBought,
@@ -196,7 +197,10 @@ contract UniswapETH is ERC20 {
     uint256 tokenReserve = token.balanceOf(address(this));
     uint256 ethBought = getInputPrice(tokensSold, tokenReserve, address(this).balance);
     require(ethBought >= minEthBought);
+    // 转换输入token到address(this)中
     require(token.transferFrom(buyer, address(this), tokensSold));
+    // 调用要买的token的exchange合约的ethToTokenTransferInput
+    // 当前exchange地址的eth -> 要买token的exchange地址
     uint256 tokensBought = IUniswapExchange(exchangeAddr).ethToTokenTransferInput.value(ethBought)(minTokensBought, deadline, recipient);
     emit EthPurchase(buyer, tokensSold, ethBought);
     return tokensBought;
@@ -208,14 +212,18 @@ contract UniswapETH is ERC20 {
     uint256 minTokensBought,
     uint256 minEthBought,
     uint256 deadline,
+    // 要买的token的地址
     address tokenAddr)
     public returns (uint256)
   {
+    // 根据要买的token的地址 计算excahnge合约地址
     address payable exchangeAddr = factory.getExchange(tokenAddr);
     return tokenToTokenInput(tokensSold, minTokensBought, minEthBought, deadline, msg.sender, msg.sender, exchangeAddr);
   }
 
 
+  // msg.sender支付输入token
+  // recipient接收输出token
   function tokenToTokenTransferInput(
     uint256 tokensSold,
     uint256 minTokensBought,
@@ -229,6 +237,7 @@ contract UniswapETH is ERC20 {
     return tokenToTokenInput(tokensSold, minTokensBought, minEthBought, deadline, msg.sender, recipient, exchangeAddr);
   }
 
+  // 在to中输入了想要买的token数额
   function tokenToTokenOutput(
     uint256 tokensBought,
     uint256 maxTokensSold,
@@ -236,17 +245,22 @@ contract UniswapETH is ERC20 {
     uint256 deadline,
     address buyer,
     address recipient,
+    // 想要买的token的exchage address
     address payable exchangeAddr)
     private nonReentrant returns (uint256)
   {
     require(deadline >= block.timestamp && (tokensBought > 0 && maxEthSold > 0));
     require(exchangeAddr != address(this) && exchangeAddr != address(0));
+    // 计算想要买tokensBought个token 需要多少eth
     uint256 ethBought = IUniswapExchange(exchangeAddr).getEthToTokenOutputPrice(tokensBought);
     uint256 tokenReserve = token.balanceOf(address(this));
+    // 计算需要ethBought个eth需要多少输入token
     uint256 tokensSold = getOutputPrice(ethBought, tokenReserve, address(this).balance);
     // tokens sold is always > 0
     require(maxTokensSold >= tokensSold && maxEthSold >= ethBought);
+    // 转移输入token到当前exchange上
     require(token.transferFrom(buyer, address(this), tokensSold));
+    // 调用要买的token的exchange合约的ethToTokenTransferOutput用eth兑换token
     IUniswapExchange(exchangeAddr).ethToTokenTransferOutput.value(ethBought)(tokensBought, deadline, recipient);
     emit EthPurchase(buyer, tokensSold, ethBought);
     return tokensSold;
