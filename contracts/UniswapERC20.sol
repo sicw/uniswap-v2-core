@@ -50,9 +50,10 @@ contract UniswapERC20 is ERC20 {
     // x*y = (x+x') * (y-y')
     // y' = (1 - x / (x+x'))*y
     // y' = x'*y / (x+x')
-    // 要兑换1000个x(输入) 能得到多少y(输出)
+    // 原x=10000 y=10000 要兑换1000个x(输入) 能得到多少y(输出)
     // 909.09  = 1000*10000 / (10000+1000) 不算手续费
     // 906.61  = 1000*997*10000 / (10000*1000+1000*997) 算手续费
+    // 多收outputToken千分之三手续费 (少转出outputToken)
     uint256 inputAmountWithFee = inputAmount.mul(997);
     uint256 numerator = inputAmountWithFee.mul(outputReserve);
     uint256 denominator = inputReserve.mul(1000).add(inputAmountWithFee);
@@ -63,7 +64,7 @@ contract UniswapERC20 is ERC20 {
 
   function getOutputPrice(uint256 outputAmount, uint256 inputReserve, uint256 outputReserve) public pure returns (uint256) {
     require(inputReserve > 0 && outputReserve > 0);
-    // 扣除千分之三的手续费 整体*1000 / 997 最后加一是取整
+    // 多收inputToken千分之三的手续费 (多收取inputToken千分之三) 整体*1000 / 997 最后加一是取整
     // x*y = (x+x') * (y-y')
     // x' = x*(y / (y-y') - 1)
     // x' = x*y' / (y-y') + 1
