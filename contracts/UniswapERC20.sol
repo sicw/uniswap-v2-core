@@ -90,13 +90,16 @@ contract UniswapERC20 is ERC20 {
         outputToken == _tokenB;
       }
 
-      // 获取存量
+      // 以当前合约的address做为地址 获取所在token的存量(该交易对里有多少token)
       uint256 inputReserve = IERC20(inputToken).balanceOf(address(this));
       uint256 outputReserve = IERC20(outputToken).balanceOf(address(this));
       // 计算能买多少另一个token
+      // transferFrom 第三方合约调用A->B转账时使用
+      // 已知x' x y 求y'
       uint256 amountBought = getInputPrice(amountSold, inputReserve, outputReserve);
       // 将输入token转进address(this) 需要msg.sender给当前合约授权
       require(IERC20(inputToken).transferFrom(msg.sender, address(this), amountSold));
+      // 输出token的owner就是address(this) 使用transfer就可以了
       // 将输出token 从address(this) 发送到 recipient 可以直接调用transfer
       require(IERC20(outputToken).transfer(recipient, amountBought));
 
@@ -111,6 +114,7 @@ contract UniswapERC20 is ERC20 {
 
 
   //TO: DO msg.sender is wrapper
+  // 想要兑换出:outputToken 数量:amountBought
   function swapOutput(address outputToken, uint256 amountBought, address recipient) public nonReentrant returns (uint256) {
       address _tokenA = address(tokenA);
       address _tokenB = address(tokenB);
@@ -189,8 +193,10 @@ contract UniswapERC20 is ERC20 {
 
       uint256 reserveA = IERC20(_tokenA).balanceOf(address(this));
       uint256 reserveB = IERC20(_tokenB).balanceOf(address(this));
-      // 这里按比例计算后+1
+      // 等比计算投入比例 +1向上取整
+      // addx / x = addy / y , addy = addx * y / x
       uint256 amountB = (amountA.mul(reserveB) / reserveA).add(1);
+      // lp' / lp total = addx / x = addy / y
       uint256 liquidityMinted = amountA.mul(_totalSupply) / reserveA;
       require(maxTokenB >= amountB && liquidityMinted >= minLiquidity);
       // 添加lp token
@@ -218,7 +224,7 @@ contract UniswapERC20 is ERC20 {
     }
   }
 
-  // amout代表lp token数量
+  // amount代表lp token数量
   function removeLiquidity(uint256 amount, uint256 minTokenA, uint256 minTokenB) public nonReentrant returns (uint256, uint256) {
     uint256 _totalSupply = totalSupply;
     require(amount > 0 && minTokenA > 0 && minTokenB > 0 && _totalSupply > 0);
