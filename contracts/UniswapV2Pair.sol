@@ -8,6 +8,7 @@ import './interfaces/IERC20.sol';
 import './interfaces/IUniswapV2Factory.sol';
 import './interfaces/IUniswapV2Callee.sol';
 
+// Pair也是ERC20合约,支持流动性代币
 contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     using SafeMath  for uint;
     using UQ112x112 for uint224;
@@ -70,15 +71,21 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     }
 
     // update reserves and, on the first call per block, price accumulators
+    // 更新reserves, 并且在每个区块第一次调用时累加价格
+    // todo 智能合约代码执行与区块交易打包什么关系(每次调用都是一个交易)
     function _update(uint balance0, uint balance1, uint112 _reserve0, uint112 _reserve1) private {
         require(balance0 <= uint112(-1) && balance1 <= uint112(-1), 'UniswapV2: OVERFLOW');
+        // 当前区块时间戳
         uint32 blockTimestamp = uint32(block.timestamp % 2**32);
+        // 距离上次区块的时常
         uint32 timeElapsed = blockTimestamp - blockTimestampLast; // overflow is desired
+        // 扩展合约会用到
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
             // * never overflows, and + overflow is desired
             price0CumulativeLast += uint(UQ112x112.encode(_reserve1).uqdiv(_reserve0)) * timeElapsed;
             price1CumulativeLast += uint(UQ112x112.encode(_reserve0).uqdiv(_reserve1)) * timeElapsed;
         }
+        // 更新reserves
         reserve0 = uint112(balance0);
         reserve1 = uint112(balance1);
         blockTimestampLast = blockTimestamp;
@@ -109,22 +116,31 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     // this low-level function should be called from a contract which performs important safety checks
     function mint(address to) external lock returns (uint liquidity) {
         (uint112 _reserve0, uint112 _reserve1,) = getReserves(); // gas savings
+        // 在Router02中已经调用transfer, balance和reserve有差值
+        // todo 这里为啥要减法计算呢 与 V1版本不同
         uint balance0 = IERC20(token0).balanceOf(address(this));
         uint balance1 = IERC20(token1).balanceOf(address(this));
         uint amount0 = balance0.sub(_reserve0);
         uint amount1 = balance1.sub(_reserve1);
 
+        // 给feeTo的小费 feeOn暂未开启
         bool feeOn = _mintFee(_reserve0, _reserve1);
+        // totalSupply会在_mintFee中改变, 所以这里重新获取下
         uint _totalSupply = totalSupply; // gas savings, must be defined here since totalSupply can update in _mintFee
         if (_totalSupply == 0) {
+            // 首次mint lq = 开平方(x*y) - MINIMUM_LIQUIDITY
+            // todo 防止正常用户无法参加流动性(整理个详情)
             liquidity = Math.sqrt(amount0.mul(amount1)).sub(MINIMUM_LIQUIDITY);
            _mint(address(0), MINIMUM_LIQUIDITY); // permanently lock the first MINIMUM_LIQUIDITY tokens
         } else {
+            // x' / x = lq' / lq    y' / y = lq' / lq 取两个lq的min
             liquidity = Math.min(amount0.mul(_totalSupply) / _reserve0, amount1.mul(_totalSupply) / _reserve1);
         }
         require(liquidity > 0, 'UniswapV2: INSUFFICIENT_LIQUIDITY_MINTED');
+        // 实际给to增加lq流动性代币
         _mint(to, liquidity);
 
+        // 更新reserve
         _update(balance0, balance1, _reserve0, _reserve1);
         if (feeOn) kLast = uint(reserve0).mul(reserve1); // reserve0 and reserve1 are up-to-date
         emit Mint(msg.sender, amount0, amount1);
