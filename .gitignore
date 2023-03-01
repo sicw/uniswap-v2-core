@@ -1,2 +1,9 @@
 node_modules/
 build/
+.idea/
+artifacts/
+cache/
+contracts/artifacts/
+contracts/interfaces/artifacts/
+contracts/test_contracts/artifacts/
+package-lock.json

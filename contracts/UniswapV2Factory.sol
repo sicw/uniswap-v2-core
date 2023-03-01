@@ -7,7 +7,10 @@ contract UniswapV2Factory is IUniswapV2Factory {
     address public feeTo;
     address public feeToSetter;
 
+    // tokenA => tokenB => pair (tokenA < tokenB)
     mapping(address => mapping(address => address)) public getPair;
+
+    // 全部pairs
     address[] public allPairs;
 
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
