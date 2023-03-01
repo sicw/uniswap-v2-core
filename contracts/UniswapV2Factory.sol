@@ -29,7 +29,11 @@ contract UniswapV2Factory is IUniswapV2Factory {
         require(token0 != address(0), 'UniswapV2: ZERO_ADDRESS');
         require(getPair[token0][token1] == address(0), 'UniswapV2: PAIR_EXISTS'); // single check is sufficient
         // todo 使用create2之后 没有应用到'提前计算合约地址' 为啥不使用new呢
+        // 解答下上面的问题: 在合约外部有很多地方需要获取到Pair合约的地址, 这时可以根据token0和token1计算出Pair地址, 然后在通过allPairs获取Pair信息.
+
+        // 这个再用keccak256包装就是INIT_CODE_HASH
         bytes memory bytecode = type(UniswapV2Pair).creationCode;
+        // 使用token1, token2加盐
         bytes32 salt = keccak256(abi.encodePacked(token0, token1));
         assembly {
             pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
