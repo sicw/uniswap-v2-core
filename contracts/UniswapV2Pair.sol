@@ -72,8 +72,6 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     }
 
     // update reserves and, on the first call per block, price accumulators
-    // 更新reserves, 并且在每个区块第一次调用时累加价格
-    // todo 智能合约代码执行与区块交易打包什么关系(每次调用都是一个交易)
     function _update(uint balance0, uint balance1, uint112 _reserve0, uint112 _reserve1) private {
         require(balance0 <= uint112(- 1) && balance1 <= uint112(- 1), 'UniswapV2: OVERFLOW');
         // 当前区块时间戳
@@ -81,7 +79,9 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
         // 距离上次区块的时常
         uint32 timeElapsed = blockTimestamp - blockTimestampLast;
         // overflow is desired
-        // 扩展合约会用到
+        // 一个区块中只有第一个执行此逻辑的交易会执行, 后面的timeElapsed=0
+        // 所以后面的交易可以读取price0CumulativeLast、price1CumulativeLast获取价格, 那第一个交易如果要获取价格怎么办呢
+        // 计算上个区块的最终价格(最后一个交易执行完)到现在持续的时间
         if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
             // * never overflows, and + overflow is desired
             price0CumulativeLast += uint(UQ112x112.encode(_reserve1).uqdiv(_reserve0)) * timeElapsed;
@@ -193,13 +193,12 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
     }
 
     // this low-level function should be called from a contract which performs important safety checks
-    // router合约会调用这里 amount0Out和amount1Out会有一个为0
-    // 在router里已经把tokenA发送到tokenA<-->tokenB Pair了
+    // 底层函数, 只执行转账操作.
+    // token兑换、闪电贷都可以调用该函数
     function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external lock {
         require(amount0Out > 0 || amount1Out > 0, 'UniswapV2: INSUFFICIENT_OUTPUT_AMOUNT');
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         // gas savings
-        // 保证amountXOut < lq池子中剩余的代币数量
         require(amount0Out < _reserve0 && amount1Out < _reserve1, 'UniswapV2: INSUFFICIENT_LIQUIDITY');
 
         uint balance0;
@@ -208,20 +207,16 @@ contract UniswapV2Pair is IUniswapV2Pair, UniswapV2ERC20 {
             address _token0 = token0;
             address _token1 = token1;
             require(to != _token0 && to != _token1, 'UniswapV2: INVALID_TO');
-            // 转移tokenB给下一个pair做为输入 tokenB<-->tokenC
             if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
             // optimistically transfer tokens
             if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
             // optimistically transfer tokens
-            // 数据调用
             if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
-            // 获取token balance
             balance0 = IERC20(_token0).balanceOf(address(this));
             balance1 = IERC20(_token1).balanceOf(address(this));
         }
-        // amountXOut有一个是0, 所以amountXIn有一个是0
-        // balance一个增了 一个减了
-        // todo 计算结果没错, 逻辑不明白
+        // balance0是现在的资产，_reserve0是操作前的资产，amount0Out是操作的数量
+        // 现在资产 > 操作后的资产 => 往里输入了
         uint amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
         uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
         require(amount0In > 0 || amount1In > 0, 'UniswapV2: INSUFFICIENT_INPUT_AMOUNT');
